@@ -15,22 +15,28 @@ from datetime import date, timedelta
 
 # --- edit these to match the actor's actual field names (see fetch.py output) ---
 CANDIDATES = {
-    "city": ["city", "venue.city", "venue.address.city", "location.city",
-             "address.city", "_embedded.venues.0.city.name", "cityName"],
-    "event_date": ["event_date", "date", "start_date", "startDate", "startTime",
-                   "start_time", "start.local", "dates.start.localDate", "datetime",
-                   "startDateTime", "time"],
-    "venue": ["venue.name", "venue_name", "venue", "_embedded.venues.0.name",
-              "location.name", "location", "place"],
-    "artists": ["artists", "lineup", "performers", "artist", "artistList"],
-    "title": ["title", "name", "eventName", "event_name"],
-    "description": ["description", "summary", "about", "details"],
-    "ticket_price": ["ticket_price", "price", "minPrice", "min_price", "ticketPrice",
-                     "priceRanges.0.min", "tickets.0.price", "price_min", "cost",
-                     "priceRange", "price_range"],
-    "genre_tags": ["genre_tags", "genres", "tags", "genre",
+    # "event."-prefixed paths: the Ticketmaster search actor nests everything
+    # under an `event` object
+    "city": ["event.venue.city", "city", "venue.city", "venue.address.city",
+             "location.city", "address.city", "_embedded.venues.0.city.name",
+             "cityName"],
+    "event_date": ["event.dates.startDate", "event_date", "date", "start_date",
+                   "startDate", "startTime", "start_time", "start.local",
+                   "dates.start.localDate", "datetime", "startDateTime", "time"],
+    "venue": ["event.venue.name", "venue.name", "venue_name", "venue",
+              "_embedded.venues.0.name", "location.name", "location", "place"],
+    "artists": ["event.artists", "artists", "lineup", "performers", "artist",
+                "artistList"],
+    "title": ["event.title", "title", "name", "eventName", "event_name"],
+    "description": ["event.description", "description", "summary", "about", "details"],
+    "ticket_price": ["event.priceMin", "ticket_price", "price", "minPrice",
+                     "min_price", "ticketPrice", "priceRanges.0.min",
+                     "tickets.0.price", "price_min", "cost", "priceRange",
+                     "price_range"],
+    "genre_tags": ["event.majorCategory", "genre_tags", "genres", "tags", "genre",
                    "classifications.0.genre.name"],
-    "url": ["url", "link", "eventUrl", "event_url", "webUrl", "ticketUrl"],
+    "url": ["event.url", "url", "link", "eventUrl", "event_url", "webUrl",
+            "ticketUrl"],
 }
 
 REQUIRED = ["city", "event_date"]  # a record missing these can't be ranked; drop it

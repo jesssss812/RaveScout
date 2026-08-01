@@ -104,7 +104,9 @@ Never state a ticket price as cheap or expensive in absolute terms. Always call 
 
 Rank by scarcity first, price second. Quality is not the criterion — availability is. An artist who plays the user's home city often is not a reason to travel, however good they are.
 
-Report scarcity and price as separate facts, never collapsed into one score. Give each option one verdict — GO, HOLD, or SKIP — and one sentence of reasoning. Cite event URLs."""
+Report scarcity and price as separate facts, never collapsed into one score. Give each option one verdict — GO, HOLD, or SKIP — and one sentence of reasoning. Cite event URLs.
+
+If ticket prices are unavailable in the data, say so once, plainly, and rank on scarcity alone — do not guess prices, and do not keep retrying tools that return nothing. Call artist_shows first, exactly once, and treat its result as the complete set of the artist's shows."""
 
 AGENT = {
     "id": "ravescout",
