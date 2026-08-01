@@ -35,6 +35,11 @@ CANDIDATES = {
 
 REQUIRED = ["city", "event_date"]  # a record missing these can't be ranked; drop it
 
+# The scrape runs broad (the actor's city filter is broken), so scoping to
+# "cities I'd travel to" happens here instead. Empty set = keep every city —
+# run once like that, read the city counts in the report, then set this.
+TARGET_CITIES = set()  # e.g. {"Chicago", "Detroit", "Denver", "Milwaukee"}
+
 
 def get_path(rec, path):
     cur = rec
@@ -152,6 +157,9 @@ def main():
             continue
         if not city:
             drops["no city"] += 1
+            continue
+        if TARGET_CITIES and norm_city(city) not in TARGET_CITIES:
+            drops["city not in targets"] += 1
             continue
         title = str(resolve(rec, "title") or "").strip()
         price = parse_price(resolve(rec, "ticket_price"))
