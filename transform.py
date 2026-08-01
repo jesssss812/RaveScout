@@ -19,7 +19,7 @@ CANDIDATES = {
     # under an `event` object
     "city": ["event.venue.city", "city", "venue.city", "venue.address.city",
              "location.city", "address.city", "_embedded.venues.0.city.name",
-             "cityName"],
+             "cityName", "addressLocality"],
     "event_date": ["event.dates.startDate", "event_date", "date", "start_date",
                    "startDate", "startTime", "start_time", "start.local",
                    "dates.start.localDate", "datetime", "startDateTime", "time"],
@@ -29,11 +29,11 @@ CANDIDATES = {
                 "artistList"],
     "title": ["event.title", "title", "name", "eventName", "event_name"],
     "description": ["event.description", "description", "summary", "about", "details"],
-    "ticket_price": ["event.priceMin", "ticket_price", "price", "minPrice",
+    "ticket_price": ["offer.price", "event.priceMin", "ticket_price", "price", "minPrice",
                      "min_price", "ticketPrice", "priceRanges.0.min",
                      "tickets.0.price", "price_min", "cost", "priceRange",
                      "price_range"],
-    "genre_tags": ["event.majorCategory", "genre_tags", "genres", "tags", "genre",
+    "genre_tags": ["genreName", "event.majorCategory", "genre_tags", "genres", "tags", "genre",
                    "classifications.0.genre.name"],
     "url": ["event.url", "url", "link", "eventUrl", "event_url", "webUrl",
             "ticketUrl"],
@@ -84,7 +84,34 @@ def parse_date(val):
     m = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", val)  # US format fallback
     if m:
         return f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    m = re.search(r"(\d{2})-(\d{2})-(\d{4})", val)  # MM-DD-YYYY (Ticketmaster URLs)
+    if m:
+        return f"{m.group(3)}-{m.group(1)}-{m.group(2)}"
     return None
+
+
+MONTHS = {m: i + 1 for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
+
+
+def parse_date_title(val):
+    """'Aug 7' -> ISO date. Year is inferred: current year, bumped forward if the
+    result would be >30 days in the past — upcoming-events feeds don't list old
+    shows, so a 'past' parse means the show is next calendar year."""
+    if not isinstance(val, str):
+        return None
+    m = re.search(r"([A-Za-z]{3,9})\s+(\d{1,2})", val)
+    if not m or m.group(1)[:3].lower() not in MONTHS:
+        return None
+    today = date.today()
+    month, day = MONTHS[m.group(1)[:3].lower()], int(m.group(2))
+    try:
+        d = date(today.year, month, day)
+        if (today - d).days > 30:
+            d = date(today.year + 1, month, day)
+        return d.isoformat()
+    except ValueError:
+        return None
 
 
 def parse_price(val):
@@ -157,7 +184,11 @@ def main():
 
     for rec in raw:
         city = resolve(rec, "city")
-        d = parse_date(resolve(rec, "event_date"))
+        # date resolution, most to least reliable: real date field -> the
+        # MM-DD-YYYY embedded in Ticketmaster URLs -> 'Aug 7'-style dateTitle
+        d = (parse_date(resolve(rec, "event_date"))
+             or parse_date(str(rec.get("url", "")))
+             or parse_date_title(rec.get("dateTitle")))
         if not d:
             drops["no date"] += 1
             continue
@@ -169,6 +200,10 @@ def main():
             continue
         title = str(resolve(rec, "title") or "").strip()
         price = parse_price(resolve(rec, "ticket_price"))
+        if price == 0.0 and isinstance(get_path(rec, "offer.price"), (int, float)):
+            # Ticketmaster's offer.price=0 is a placeholder for "price not
+            # published", not a free show — a 0 would drag percentiles down
+            price = None
         if price is None:
             price_null += 1
         genres = resolve(rec, "genre_tags") or []
@@ -186,6 +221,9 @@ def main():
             "genre_tags": [str(g) for g in genres],
             "url": str(resolve(rec, "url") or "").strip(),
         }
+        if not ev["venue"] and ev["description"].count("|") >= 2:
+            # TM search descriptions read "Title | Fri 8/7 @ 9pm | Venue, City, ST"
+            ev["venue"] = ev["description"].rsplit("|", 1)[-1].split(",")[0].strip()
         events.append(ev)
         cities[ev["city"]] += 1
         artists_all.update(ev["artists"])

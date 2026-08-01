@@ -71,20 +71,27 @@ TOOLS = [
     {
         "id": "artist_scarcity",
         "type": "esql",
-        "description": ("Returns how many times an artist plays the user's home "
-                        "city within the indexed window. Zero or low means the "
-                        "show is not otherwise available and is worth travelling "
-                        "for; a high count means the user should wait rather than "
-                        "travel."),
+        # Returns per-city counts for ALL cities rather than filtering to the
+        # home city: the agent's LLM sometimes omits or invents params, and a
+        # call that can't be malformed beats one that can. home_city is accepted
+        # (echoed back) so passing it is never an arg-validation error.
+        "description": ("Returns how many shows a named artist plays in each city "
+                        "in the index (per-city counts, all cities). Use the row "
+                        "matching the user home city to judge scarcity: zero or "
+                        "low home-city count means the show is not otherwise "
+                        "available locally and is worth travelling for. "
+                        "Case-insensitive."),
         "configuration": {
             "query": ("FROM events "
-                      "| WHERE city == ?home_city "
                       "| MV_EXPAND artists "
                       "| WHERE TO_LOWER(artists) == TO_LOWER(?artist) "
-                      "| STATS home_appearances = COUNT(*)"),
+                      "| STATS shows = COUNT(*) BY city "
+                      "| EVAL requested_home_city = ?home_city "
+                      "| SORT shows DESC"),
             "params": {
-                "artist": {"type": "string", "description": "Artist name"},
-                "home_city": {"type": "string", "description": "The user's home city, e.g. 'Chicago'"},
+                "artist": {"type": "string", "description": "Artist name, e.g. Sylvan Esso"},
+                "home_city": {"type": "string", "optional": True, "defaultValue": "",
+                              "description": "The user home city, echoed back for reference. Results always include every city."},
             },
         },
     },
@@ -129,7 +136,8 @@ def delete_quiet(url):
 
 
 for tool in TOOLS:
-    if delete_quiet(f"{KIBANA}/api/agent_builder/tools/{tool['id']}"):
+    # force=true: deleting a tool that's assigned to an agent 409s otherwise
+    if delete_quiet(f"{KIBANA}/api/agent_builder/tools/{tool['id']}?force=true"):
         print(f"deleted existing tool {tool['id']}")
     http("POST", f"{KIBANA}/api/agent_builder/tools", headers=HEADERS, body=tool)
     print(f"created tool: {tool['id']}")

@@ -65,7 +65,7 @@ def main():
         indexed += len(batch)
         print(f"  indexed {indexed}/{len(lines)}")
 
-    http("POST", f"{es}/{INDEX}/_refresh", headers=es_headers(), body={})
+    http("POST", f"{es}/{INDEX}/_refresh", headers=es_headers())
     print(f"done: {indexed:,} docs in /{INDEX}")
 
 
